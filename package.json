@@ -1,0 +1,55 @@
+{
+  "name": "@vindulaintranet/pi-extension-mermaid",
+  "version": "0.1.0",
+  "description": "Pi package that renders Mermaid code blocks inline and opens a full-screen viewer on demand",
+  "author": "Fabio Rizzo Matos <fabiorizzo@vindula.com.br> (https://github.com/fabiorizzomatos)",
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "mermaid",
+    "diagrams",
+    "tui"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vindulaintranet/pi-extension-mermaid.git"
+  },
+  "bugs": {
+    "url": "https://github.com/vindulaintranet/pi-extension-mermaid/issues"
+  },
+  "homepage": "https://github.com/vindulaintranet/pi-extension-mermaid#readme",
+  "scripts": {
+    "test": "node ./node_modules/tsx/dist/cli.mjs --test test/**/*.test.ts",
+    "check:bundle": "./node_modules/.bin/esbuild mermaid.ts --bundle --platform=node --format=esm --outfile=/tmp/pi-extension-mermaid-check.js --external:@mariozechner/pi-coding-agent --external:@mariozechner/pi-tui --external:beautiful-mermaid",
+    "check:pack": "npm pack --dry-run",
+    "validate": "npm test && npm run check:bundle && npm run check:pack"
+  },
+  "pi": {
+    "extensions": [
+      "./mermaid.ts"
+    ]
+  },
+  "files": [
+    "mermaid.ts",
+    "mermaid-extract.ts",
+    "mermaid-render.ts",
+    "mermaid-viewer.ts",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "docs/agent/notes"
+  ],
+  "dependencies": {
+    "beautiful-mermaid": "^1.1.3"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-tui": "*"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.11",
+    "tsx": "^4.20.6"
+  }
+}
