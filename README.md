@@ -4,7 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/vindulaintranet/pi-extension-mermaid)](https://github.com/vindulaintranet/pi-extension-mermaid/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-A standalone [Pi](https://github.com/badlogic/pi-mono) package that renders Mermaid code blocks inline in chat and opens a full diagram viewer on demand.
+A standalone [Pi](https://github.com/badlogic/pi-mono) package that renders Mermaid code blocks as real inline images in chat and opens a larger image viewer on demand.
 
 Created by [Fabio Rizzo Matos](https://github.com/fabiorizzomatos) · contact: `fabiorizzo@vindula.com.br`
 
@@ -12,8 +12,8 @@ Created by [Fabio Rizzo Matos](https://github.com/fabiorizzomatos) · contact: `
 
 This package gives Pi two Mermaid-focused behaviors:
 
-- renders fenced ```` ```mermaid ```` blocks inline in the TUI
-- opens a pannable Mermaid viewer with:
+- renders fenced ```` ```mermaid ```` blocks inline as rendered diagrams
+- opens a larger Mermaid viewer with:
   - `Ctrl+Shift+M`
   - `/mermaid`
 
@@ -21,7 +21,7 @@ It watches both:
 - assistant responses
 - user prompts
 
-So if the operator or agent emits Mermaid in a normal fenced block, Pi shows an inline ASCII diagram automatically.
+So if the operator or agent emits Mermaid in a normal fenced block, Pi shows a rendered diagram automatically instead of leaving only the raw code visible.
 
 ## Install
 
@@ -65,23 +65,36 @@ flowchart LR
 What happens:
 - the message gets scanned for Mermaid fences
 - the diagram is rendered inline in the chat stream
-- the full viewer stays available with `Ctrl+Shift+M` or `/mermaid`
+- the larger viewer stays available with `Ctrl+Shift+M` or `/mermaid`
+
+## Rendering model
+
+### Supported terminals
+
+On terminals with inline image support, the extension renders actual diagram images:
+- Kitty
+- Ghostty
+- WezTerm
+- iTerm2
+
+### Fallback
+
+If the terminal does not support inline images, the extension falls back to ASCII rendering instead of failing.
 
 ## Viewer controls
 
 Inside the viewer:
 
-- `← → ↑ ↓` scroll
-- `Shift+Arrow` or `Alt+Arrow` scroll faster
 - `[` previous diagram
 - `]` next diagram
-- `Home` jump horizontal start
-- `End` jump horizontal end
 - `Esc` close
+
+If the terminal does not support inline images, the viewer falls back to the older ASCII mode with scroll controls.
 
 ## Implementation notes
 
-- Uses [`beautiful-mermaid`](https://www.npmjs.com/package/beautiful-mermaid) to render Mermaid as terminal-friendly ASCII.
+- Uses [`beautiful-mermaid`](https://www.npmjs.com/package/beautiful-mermaid) to generate SVG diagrams.
+- Uses [`@resvg/resvg-js`](https://www.npmjs.com/package/@resvg/resvg-js) to rasterize Mermaid SVG into PNG for terminal image protocols.
 - Stores diagram metadata in custom Pi session messages so diagrams survive normal session flow.
 - Filters those custom messages out of LLM context, so the model does not see internal rendering payloads.
 

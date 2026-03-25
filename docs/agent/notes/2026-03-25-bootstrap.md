@@ -8,14 +8,14 @@ This package mirrors the standalone packaging direction already used for `pi-ext
 
 ## Decisions
 - Keep the package focused on Mermaid only.
-- Use `beautiful-mermaid` for terminal-friendly ASCII rendering.
-- Store rendered diagram metadata in custom Pi messages and hide those messages from LLM context.
+- Render Mermaid as real images in supported terminals using `beautiful-mermaid` for SVG generation and `@resvg/resvg-js` for PNG rasterization.
+- Keep ASCII rendering only as a fallback for terminals without inline image support.
+- Store diagram metadata in custom Pi messages and hide those messages from LLM context.
 - Ship a standalone package entrypoint at `mermaid.ts` with small helper files for extraction, rendering, and viewer behavior.
 
 ## Commands run
-- `npm test`
-- `npm run check:bundle`
-- `npm run check:pack`
+- `npm install`
+- `npm run validate`
 
 ## Files changed
 - `package.json`
@@ -31,10 +31,12 @@ This package mirrors the standalone packaging direction already used for `pi-ext
 - extraction helper tests
 - bundle validation
 - `npm pack --dry-run`
+- runtime smoke test for PNG rasterization via local Node script
 
 ## Risks
-- Runtime behavior depends on `beautiful-mermaid` output staying compatible with the current viewer assumptions.
-- The viewer uses fixed-height rendering, so very large diagrams still require scrolling.
+- Runtime rendering now depends on native platform bindings from `@resvg/resvg-js` being installed correctly on the target machine.
+- Inline image quality still depends on the terminal supporting Pi's image protocols.
+- On unsupported terminals, the experience still falls back to ASCII.
 
 ## Next
-- Publish the repo and wire CI/release automation if desired.
+- Publish a tagged release once the visual result is confirmed in real Pi sessions.

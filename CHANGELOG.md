@@ -6,3 +6,4 @@
 - render Mermaid fenced blocks inline in Pi chat
 - add full-screen Mermaid viewer via `Ctrl+Shift+M` and `/mermaid`
 - add extraction helper tests and package validation scripts
+- switch from ASCII-first rendering to real Mermaid image rendering with PNG output and ASCII fallback

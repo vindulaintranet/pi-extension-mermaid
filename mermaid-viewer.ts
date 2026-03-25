@@ -1,10 +1,10 @@
 import type { ExtensionContext, Theme } from "@mariozechner/pi-coding-agent";
-import { Key, matchesKey, visibleWidth } from "@mariozechner/pi-tui";
+import { Image, Key, getCapabilities, matchesKey, visibleWidth } from "@mariozechner/pi-tui";
 
 import type { MermaidContextSlice } from "./mermaid-extract.ts";
 import type { RenderCache } from "./mermaid-render.ts";
 
-import { pickBestPreset } from "./mermaid-render.ts";
+import { pickBestPreset, renderImageWithCache } from "./mermaid-render.ts";
 
 export type DiagramEntry = {
   id: string;
@@ -31,9 +31,60 @@ export async function openMermaidViewer(args: {
 
   const startIndex = args.focusIndex ?? diagrams.length - 1;
 
+  if (getCapabilities().images) {
+    await openImageViewer(ctx, diagrams, startIndex, cache);
+    return;
+  }
+
+  await openAsciiViewer(ctx, diagrams, startIndex, cache);
+}
+
+async function openImageViewer(
+  ctx: ExtensionContext,
+  diagrams: DiagramEntry[],
+  startIndex: number,
+  cache: RenderCache,
+): Promise<void> {
   await ctx.ui.custom<void>(
     (tui, theme, _kb, done) => {
-      const viewer = new MermaidViewer(diagrams, startIndex, cache, theme, tui, done);
+      const viewer = new MermaidImageViewer(diagrams, startIndex, cache, theme, done);
+      return {
+        render: (width: number) => viewer.render(width),
+        handleInput: (data: string) => {
+          viewer.handleInput(data);
+          tui.requestRender();
+        },
+        invalidate: () => viewer.invalidate(),
+        get focused() {
+          return viewer.focused;
+        },
+        set focused(value: boolean) {
+          viewer.focused = value;
+        },
+      };
+    },
+    {
+      overlay: true,
+      overlayOptions: {
+        anchor: "top-center",
+        width: "92%",
+        minWidth: 60,
+        maxHeight: "92%",
+        offsetY: 1,
+      },
+    },
+  );
+}
+
+async function openAsciiViewer(
+  ctx: ExtensionContext,
+  diagrams: DiagramEntry[],
+  startIndex: number,
+  cache: RenderCache,
+): Promise<void> {
+  await ctx.ui.custom<void>(
+    (tui, theme, _kb, done) => {
+      const viewer = new MermaidAsciiViewer(diagrams, startIndex, cache, theme, done);
       return {
         render: (width: number) => viewer.render(width),
         handleInput: (data: string) => {
@@ -62,7 +113,97 @@ export async function openMermaidViewer(args: {
   );
 }
 
-class MermaidViewer {
+class MermaidImageViewer {
+  private activeIndex: number;
+  focused = false;
+  private cachedLines?: string[];
+  private cachedWidth?: number;
+  private image?: Image;
+  private currentCode?: string;
+
+  constructor(
+    private diagrams: DiagramEntry[],
+    initialIndex: number,
+    private cache: RenderCache,
+    private theme: Theme,
+    private done: () => void,
+  ) {
+    this.activeIndex = Math.max(0, Math.min(initialIndex, diagrams.length - 1));
+  }
+
+  handleInput(data: string): void {
+    if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl("c"))) {
+      this.done();
+      return;
+    }
+
+    if (data === "[" || matchesKey(data, Key.shift("tab"))) {
+      this.activeIndex = (this.activeIndex - 1 + this.diagrams.length) % this.diagrams.length;
+      this.currentCode = undefined;
+      this.image = undefined;
+    } else if (data === "]" || matchesKey(data, Key.tab)) {
+      this.activeIndex = (this.activeIndex + 1) % this.diagrams.length;
+      this.currentCode = undefined;
+      this.image = undefined;
+    }
+
+    this.invalidate();
+  }
+
+  render(width: number): string[] {
+    if (this.cachedLines && this.cachedWidth === width) {
+      return this.cachedLines;
+    }
+
+    const entry = this.diagrams[this.activeIndex];
+    const lines: string[] = [];
+    lines.push(
+      this.theme.fg("customMessageLabel", this.theme.bold(`mermaid ${this.activeIndex + 1}/${this.diagrams.length}`)),
+    );
+
+    const before = summarizeContext(entry.context.beforeLines);
+    if (before) {
+      lines.push(this.theme.fg("dim", truncate(before, width)));
+    }
+
+    const rendered = renderImageWithCache(this.cache, entry.block.code);
+    if (!this.image || this.currentCode !== entry.block.code) {
+      this.image = new Image(
+        rendered.pngBase64,
+        "image/png",
+        {
+          fallbackColor: (text: string) => this.theme.fg("dim", text),
+        },
+        {
+          maxWidthCells: 180,
+          filename: `mermaid-${entry.id}.png`,
+        },
+        rendered.dimensions,
+      );
+      this.currentCode = entry.block.code;
+    }
+
+    lines.push(...this.image.render(width));
+
+    const after = summarizeContext(entry.context.afterLines);
+    if (after) {
+      lines.push(this.theme.fg("dim", truncate(after, width)));
+    }
+
+    lines.push(this.theme.fg("dim", "[] prev/next • esc close"));
+    this.cachedLines = lines;
+    this.cachedWidth = width;
+    return lines;
+  }
+
+  invalidate(): void {
+    this.cachedLines = undefined;
+    this.cachedWidth = undefined;
+    this.image?.invalidate();
+  }
+}
+
+class MermaidAsciiViewer {
   private activeIndex: number;
   private panX = 0;
   private panY = 0;
@@ -76,7 +217,6 @@ class MermaidViewer {
     initialIndex: number,
     private cache: RenderCache,
     private theme: Theme,
-    private tui: { requestRender(): void },
     private done: () => void,
   ) {
     this.activeIndex = Math.max(0, Math.min(initialIndex, diagrams.length - 1));
@@ -181,6 +321,19 @@ class MermaidViewer {
     this.cachedLines = undefined;
     this.cachedWidth = undefined;
   }
+}
+
+function summarizeContext(lines: string[]): string {
+  return lines
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(" ")
+    .slice(0, 240);
+}
+
+function truncate(text: string, width: number): string {
+  if (visibleWidth(text) <= width) return text;
+  return `${text.slice(0, Math.max(0, width - 3))}...`;
 }
 
 function sliceAnsiByColumns(line: string, startCol: number, maxCols: number): string {

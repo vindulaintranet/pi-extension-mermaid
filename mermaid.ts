@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
-import { Box, truncateToWidth } from "@mariozechner/pi-tui";
+import { Image, getCapabilities, truncateToWidth } from "@mariozechner/pi-tui";
 
 import {
   captureContextSlice,
@@ -7,7 +7,13 @@ import {
   extractText,
   type MermaidBlock,
 } from "./mermaid-extract.ts";
-import { createCache, hashCode, pickBestPreset, type RenderCache } from "./mermaid-render.ts";
+import {
+  createCache,
+  hashCode,
+  pickBestPreset,
+  renderImageWithCache,
+  type RenderCache,
+} from "./mermaid-render.ts";
 import { openMermaidViewer, type DiagramEntry } from "./mermaid-viewer.ts";
 
 const CUSTOM_TYPE = "pi-extension-mermaid";
@@ -20,41 +26,69 @@ export default function mermaidInlineExtension(pi: ExtensionAPI) {
 
   pi.registerMessageRenderer(CUSTOM_TYPE, (message, _options, theme) => {
     const entry = message.details as DiagramEntry | undefined;
+    let imageComponent: Image | undefined;
+    let currentImageCode: string | undefined;
 
-    const component = {
+    return {
       render(width: number): string[] {
         if (!entry?.block?.code) {
           return [truncateToWidth(theme.fg("dim", "diagram not found"), width)];
         }
 
         try {
+          const label = truncateToWidth(
+            theme.fg("customMessageLabel", theme.bold("mermaid")),
+            width,
+          );
+
+          if (getCapabilities().images) {
+            const renderedImage = renderImageWithCache(cache, entry.block.code);
+            if (!imageComponent || currentImageCode !== entry.block.code) {
+              imageComponent = new Image(
+                renderedImage.pngBase64,
+                "image/png",
+                {
+                  fallbackColor: (text: string) => theme.fg("dim", text),
+                },
+                {
+                  maxWidthCells: 120,
+                  filename: `mermaid-${entry.id}.png`,
+                },
+                renderedImage.dimensions,
+              );
+              currentImageCode = entry.block.code;
+            }
+
+            return [
+              label,
+              ...imageComponent.render(width),
+              truncateToWidth(theme.fg("dim", "/mermaid • ctrl+shift+m"), width),
+            ];
+          }
+
           const { preset, rendered, overflowed } = pickBestPreset(cache, entry.block.code, width);
-          const lines: string[] = [];
-
-          let label = theme.fg("customMessageLabel", theme.bold("mermaid"));
-          if (overflowed) label += " " + theme.fg("dim", `[${preset.key}]`);
-          lines.push(label);
-
-          for (const line of rendered.lines) {
-            lines.push(line);
-          }
-
-          if (overflowed) {
-            lines.push(theme.fg("dim", "diagram wider than terminal — ctrl+shift+m to view full"));
-          }
-
+          const lines: string[] = [
+            overflowed
+              ? `${label} ${theme.fg("dim", `[${preset.key}]`)}`
+              : label,
+            ...rendered.lines,
+            theme.fg(
+              "dim",
+              overflowed
+                ? "fallback ASCII — use /mermaid for full view"
+                : "ASCII fallback — terminal image protocol unavailable",
+            ),
+          ];
           return lines.map((line) => truncateToWidth(line, width));
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           return [truncateToWidth(theme.fg("dim", `render error: ${message}`), width)];
         }
       },
-      invalidate() {},
+      invalidate() {
+        imageComponent?.invalidate();
+      },
     };
-
-    const box = new Box(1, 1, (text: string) => theme.bg("customMessageBg", text));
-    box.addChild(component);
-    return box;
   });
 
   pi.on("message_end", async (event) => {
@@ -96,7 +130,9 @@ export default function mermaidInlineExtension(pi: ExtensionAPI) {
   });
 
   pi.on("context", async (event) => ({
-    messages: event.messages.filter((message: { customType?: string }) => message.customType !== CUSTOM_TYPE),
+    messages: event.messages.filter(
+      (message: { customType?: string }) => message.customType !== CUSTOM_TYPE,
+    ),
   }));
 
   pi.on("session_switch", async () => {
@@ -149,7 +185,7 @@ export default function mermaidInlineExtension(pi: ExtensionAPI) {
         display: true,
         details: entry,
       },
-      { deliverAs: "nextTurn" },
+      { deliverAs: "followUp" },
     );
   }
 

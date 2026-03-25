@@ -1,5 +1,7 @@
+import type { ImageDimensions } from "@mariozechner/pi-tui";
 import { visibleWidth } from "@mariozechner/pi-tui";
-import { renderMermaidASCII } from "beautiful-mermaid";
+import { Resvg } from "@resvg/resvg-js";
+import { THEMES, renderMermaidASCII, renderMermaidSVG } from "beautiful-mermaid";
 import { createHash } from "node:crypto";
 
 export type MermaidPreset = {
@@ -8,15 +10,25 @@ export type MermaidPreset = {
   boxBorderPadding: number;
 };
 
-export type RenderedDiagram = {
+export type RenderedDiagramAscii = {
   ansi: string;
   lines: string[];
   maxWidth: number;
   lineCount: number;
 };
 
+export type RenderedDiagramImage = {
+  pngBase64: string;
+  dimensions: ImageDimensions;
+};
+
+export type CachedDiagram = {
+  image: RenderedDiagramImage;
+  asciiByPreset: Map<string, RenderedDiagramAscii>;
+};
+
 export type RenderCache = {
-  map: Map<string, RenderedDiagram>;
+  map: Map<string, CachedDiagram>;
   maxEntries: number;
 };
 
@@ -28,6 +40,14 @@ export const PRESETS: MermaidPreset[] = [
   { key: "tightest", paddingX: 0, boxBorderPadding: 0 },
 ];
 
+const IMAGE_THEME = {
+  ...THEMES["github-dark"],
+  transparent: true,
+};
+
+const MIN_TARGET_WIDTH_PX = 1400;
+const MAX_TARGET_WIDTH_PX = 2200;
+
 export function hashCode(code: string): string {
   return createHash("sha256").update(code).digest("hex").slice(0, 8);
 }
@@ -36,16 +56,19 @@ export function createCache(maxEntries = 128): RenderCache {
   return { map: new Map(), maxEntries };
 }
 
-export function renderWithCache(
+export function renderImageWithCache(cache: RenderCache, code: string): RenderedDiagramImage {
+  const entry = getOrCreateCacheEntry(cache, code);
+  return entry.image;
+}
+
+export function renderAsciiWithCache(
   cache: RenderCache,
   code: string,
   preset: MermaidPreset,
-): RenderedDiagram {
-  const key = `${hashCode(code)}|${preset.key}`;
-  const existing = cache.map.get(key);
+): RenderedDiagramAscii {
+  const entry = getOrCreateCacheEntry(cache, code);
+  const existing = entry.asciiByPreset.get(preset.key);
   if (existing) {
-    cache.map.delete(key);
-    cache.map.set(key, existing);
     return existing;
   }
 
@@ -63,19 +86,14 @@ export function renderWithCache(
     if (width > maxWidth) maxWidth = width;
   }
 
-  const rendered: RenderedDiagram = {
+  const rendered: RenderedDiagramAscii = {
     ansi,
     lines,
     maxWidth,
     lineCount: lines.length,
   };
 
-  cache.map.set(key, rendered);
-  if (cache.map.size > cache.maxEntries) {
-    const oldest = cache.map.keys().next().value;
-    if (typeof oldest === "string") cache.map.delete(oldest);
-  }
-
+  entry.asciiByPreset.set(preset.key, rendered);
   return rendered;
 }
 
@@ -83,11 +101,11 @@ export function pickBestPreset(
   cache: RenderCache,
   code: string,
   width: number,
-): { preset: MermaidPreset; rendered: RenderedDiagram; overflowed: boolean } {
-  let last: { preset: MermaidPreset; rendered: RenderedDiagram } | undefined;
+): { preset: MermaidPreset; rendered: RenderedDiagramAscii; overflowed: boolean } {
+  let last: { preset: MermaidPreset; rendered: RenderedDiagramAscii } | undefined;
 
   for (const preset of PRESETS) {
-    const rendered = renderWithCache(cache, code, preset);
+    const rendered = renderAsciiWithCache(cache, code, preset);
     last = { preset, rendered };
     if (rendered.maxWidth <= width) {
       return { preset, rendered, overflowed: false };
@@ -99,4 +117,61 @@ export function pickBestPreset(
   }
 
   return { ...last, overflowed: true };
+}
+
+function getOrCreateCacheEntry(cache: RenderCache, code: string): CachedDiagram {
+  const key = hashCode(code);
+  const existing = cache.map.get(key);
+  if (existing) {
+    touch(cache, key, existing);
+    return existing;
+  }
+
+  const created: CachedDiagram = {
+    image: renderPng(code),
+    asciiByPreset: new Map(),
+  };
+
+  touch(cache, key, created);
+  evictIfNeeded(cache);
+  return created;
+}
+
+function touch(cache: RenderCache, key: string, entry: CachedDiagram): void {
+  cache.map.delete(key);
+  cache.map.set(key, entry);
+}
+
+function evictIfNeeded(cache: RenderCache): void {
+  if (cache.map.size <= cache.maxEntries) return;
+  const oldest = cache.map.keys().next().value;
+  if (typeof oldest === "string") cache.map.delete(oldest);
+}
+
+function renderPng(code: string): RenderedDiagramImage {
+  const svg = renderMermaidSVG(code, IMAGE_THEME);
+  const base = new Resvg(svg, {
+    background: "rgba(0,0,0,0)",
+  });
+
+  const targetWidth = Math.max(
+    MIN_TARGET_WIDTH_PX,
+    Math.min(MAX_TARGET_WIDTH_PX, Math.round(base.width || MIN_TARGET_WIDTH_PX)),
+  );
+
+  const raster = new Resvg(svg, {
+    background: "rgba(0,0,0,0)",
+    fitTo:
+      targetWidth === Math.round(base.width || 0)
+        ? { mode: "original" }
+        : { mode: "width", value: targetWidth },
+  }).render();
+
+  return {
+    pngBase64: raster.asPng().toString("base64"),
+    dimensions: {
+      widthPx: raster.width,
+      heightPx: raster.height,
+    },
+  };
 }
