@@ -4,7 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/vindulaintranet/pi-extension-mermaid)](https://github.com/vindulaintranet/pi-extension-mermaid/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-A standalone [Pi](https://github.com/badlogic/pi-mono) package that detects Mermaid fenced blocks, renders clean terminal previews when they fit, and opens a proper SVG viewer for full-quality inspection.
+A standalone [Pi](https://github.com/badlogic/pi-mono) package that detects Mermaid fenced blocks, renders them inline in the terminal, and opens a proper SVG viewer for full-quality inspection.
 
 Created by [Fabio Rizzo Matos](https://github.com/fabiorizzomatos) · contact: `fabiorizzo@vindula.com.br`
 
@@ -13,7 +13,7 @@ Created by [Fabio Rizzo Matos](https://github.com/fabiorizzomatos) · contact: `
 This package gives Pi two Mermaid-focused behaviors:
 
 - detects fenced ```` ```mermaid ```` blocks in assistant responses and user prompts
-- shows an inline preview for assistant responses when the diagram fits the terminal well
+- shows an inline preview for assistant responses directly in the chat
 - opens Mermaid diagrams with:
   - `/mermaid-open` for the latest diagram directly in the browser
   - `/mermaid` for the multi-diagram viewer
@@ -62,8 +62,8 @@ flowchart LR
 
 What happens:
 - the message gets scanned for Mermaid fences
-- compact diagrams can render inline in the chat stream
-- large or tall diagrams skip the inline preview instead of spamming the terminal
+- diagrams render inline in the chat stream
+- if you want a larger view, use `/mermaid-open` or `/mermaid`
 - the inline preview exposes a clickable `abrir grande` link for opening the SVG directly
 - `/mermaid-open` opens the latest Mermaid directly in the browser
 - `/mermaid` and `Ctrl+Shift+M` open the full SVG viewer
@@ -80,7 +80,7 @@ Supported terminals include:
 - WezTerm
 - iTerm2
 
-If a diagram would be too large for a sane inline preview, the extension shows a compact hint instead of forcing an unreadable giant image.
+The extension now always renders the inline preview when the terminal supports images. If you want a larger view, use `/mermaid-open` or `/mermaid`.
 
 ### Full viewer
 

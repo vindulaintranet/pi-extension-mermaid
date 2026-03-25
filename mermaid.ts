@@ -9,7 +9,6 @@ import {
 } from "./mermaid-extract.ts";
 import {
   createCache,
-  estimateRowsForWidth,
   getSvgUrlWithCache,
   hashCode,
   pickBestPreset,
@@ -22,7 +21,6 @@ const CUSTOM_TYPE = "pi-extension-mermaid";
 const MAX_CODE_LENGTH = 20_000;
 const MAX_DIAGRAMS = 100;
 const INLINE_MAX_WIDTH_CELLS = 72;
-const INLINE_MAX_ROWS = 22;
 
 export default function mermaidInlineExtension(pi: ExtensionAPI) {
   const cache: RenderCache = createCache();
@@ -48,47 +46,32 @@ export default function mermaidInlineExtension(pi: ExtensionAPI) {
           if (getCapabilities().images) {
             const renderedImage = renderImageWithCache(cache, entry.block.code);
             const maxWidthCells = Math.max(24, Math.min(INLINE_MAX_WIDTH_CELLS, width - 2));
-            const estimatedRows = estimateRowsForWidth(renderedImage.dimensions, maxWidthCells);
-
-            if (estimatedRows <= INLINE_MAX_ROWS) {
-              const imageKey = `${entry.id}:${maxWidthCells}`;
-              if (!imageComponent || currentImageKey !== imageKey) {
-                imageComponent = new Image(
-                  renderedImage.pngBase64,
-                  "image/png",
-                  {
-                    fallbackColor: (text: string) => theme.fg("dim", text),
-                  },
-                  {
-                    maxWidthCells,
-                    filename: `mermaid-${entry.id}.png`,
-                  },
-                  renderedImage.dimensions,
-                );
-                currentImageKey = imageKey;
-              }
-
-              const svgUrl = getSvgUrlWithCache(cache, entry.block.code);
-              return [
-                label,
-                ...imageComponent.render(width),
-                truncateToWidth(
-                  theme.fg("accent", clickableOpenHint(svgUrl, getOpenHintLabel("abrir grande"))),
-                  width,
-                ),
-                truncateToWidth(theme.fg("dim", "/mermaid-open • /mermaid • ctrl+shift+m"), width),
-              ];
+            const imageKey = `${entry.id}:${maxWidthCells}`;
+            if (!imageComponent || currentImageKey !== imageKey) {
+              imageComponent = new Image(
+                renderedImage.pngBase64,
+                "image/png",
+                {
+                  fallbackColor: (text: string) => theme.fg("dim", text),
+                },
+                {
+                  maxWidthCells,
+                  filename: `mermaid-${entry.id}.png`,
+                },
+                renderedImage.dimensions,
+              );
+              currentImageKey = imageKey;
             }
 
+            const svgUrl = getSvgUrlWithCache(cache, entry.block.code);
             return [
               label,
+              ...imageComponent.render(width),
               truncateToWidth(
-                theme.fg(
-                  "dim",
-                  `inline preview skipped (${estimatedRows} rows) — open large with /mermaid-open`,
-                ),
+                theme.fg("accent", clickableOpenHint(svgUrl, getOpenHintLabel("abrir grande"))),
                 width,
               ),
+              truncateToWidth(theme.fg("dim", "/mermaid-open • /mermaid • ctrl+shift+m"), width),
             ];
           }
 
