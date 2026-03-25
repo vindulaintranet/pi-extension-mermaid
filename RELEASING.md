@@ -1,75 +1,83 @@
 # Releasing
 
-This repository supports both:
-- unpinned installs from the default branch
-- pinned installs from tags such as `@v0.1.0`
+This package is released as a Git tag that Pi can install directly.
 
-## Release checklist
+## Before you tag
 
-1. Update version in `package.json`
-2. Update `CHANGELOG.md`
-3. Run full validation:
+1. Make sure `README.md` reflects the current behavior.
+2. Make sure `CHANGELOG.md` has the final notes for the release.
+3. Confirm `package.json` version matches the intended tag version.
+4. Run the full validation suite:
 
 ```bash
 npm install
 npm run validate
 ```
 
-4. Commit the release changes:
+## Standard release flow
+
+For `v0.1.0`:
 
 ```bash
+git status
+npm run validate
 git add .
-git commit -m "chore: release v0.1.0"
+git commit -m "chore: prepare v0.1.0 release"
+git tag -a v0.1.0 -m "v0.1.0"
+git push origin main --follow-tags
 ```
 
-5. Create and push the release tag:
+## If the commit is already ready
+
+If the repository is already in the desired release state, you can skip the extra release-prep commit and just tag the current commit:
 
 ```bash
-git tag v0.1.0
-git push origin main --tags
+git tag -a v0.1.0 -m "v0.1.0"
+git push origin main --follow-tags
 ```
 
-## What happens after the tag
+## What the tag triggers
 
-The GitHub Actions release workflow:
-- installs dependencies
-- runs `npm run validate`
-- creates the package tarball
-- creates a GitHub Release for the tag
-- attaches the `.tgz` artifact to the release
+The GitHub Actions release workflow will:
+- install dependencies with `npm ci`
+- run `npm run validate`
+- create the package tarball
+- create a GitHub Release for the tag
+- attach the generated `.tgz`
 
-## How Pi updates work
+## Verification checklist
 
-### Users on default branch installs
+After pushing the tag, verify:
 
-If a user installed with:
-
-```bash
-pi install git:github.com/vindulaintranet/pi-extension-mermaid
-```
-
-then later runs:
-
-```bash
-pi update
-```
-
-Pi updates that package to the newest default-branch state.
-
-### Users on pinned tags
-
-If a user installed with:
+1. the tag exists on GitHub
+2. the `release` workflow completed successfully
+3. the GitHub Release page for the tag exists
+4. the `.tgz` artifact is attached
+5. Pi can install the pinned tag:
 
 ```bash
 pi install git:github.com/vindulaintranet/pi-extension-mermaid@v0.1.0
 ```
 
-then `pi update` does not move them automatically. That install is pinned.
+## Versioning guidance
 
-To adopt a newer release, the user needs to install or update to a newer tag/ref explicitly.
+- Use a new tag for any user-visible behavior change.
+- Do not reuse an existing tag.
+- Keep `package.json` and the Git tag aligned.
 
-## Recommendation
+## How Pi users update
 
-- Use unpinned installs for fast-moving internal usage
-- Use pinned tags for stable/shared setups
-- Cut a new tag whenever behavior, docs, or compatibility changes in a way users may want to consume intentionally
+### Moving branch install
+
+```bash
+pi install git:github.com/vindulaintranet/pi-extension-mermaid
+pi update
+```
+
+### Pinned install
+
+```bash
+pi install git:github.com/vindulaintranet/pi-extension-mermaid@v0.1.0
+```
+
+Pinned installs stay on that exact ref until the user explicitly upgrades to another tag or commit.

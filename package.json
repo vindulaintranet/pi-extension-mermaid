@@ -1,7 +1,7 @@
 {
   "name": "@vindulaintranet/pi-extension-mermaid",
   "version": "0.1.0",
-  "description": "Pi package that renders Mermaid code blocks inline and opens a full-screen viewer on demand",
+  "description": "Pi package that renders Mermaid blocks inline and opens browser or in-app viewers for larger inspection",
   "author": "Fabio Rizzo Matos <fabiorizzo@vindula.com.br> (https://github.com/fabiorizzomatos)",
   "license": "MIT",
   "type": "module",

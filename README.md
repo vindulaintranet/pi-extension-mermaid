@@ -4,52 +4,55 @@
 [![Release](https://img.shields.io/github/v/release/vindulaintranet/pi-extension-mermaid)](https://github.com/vindulaintranet/pi-extension-mermaid/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-A standalone [Pi](https://github.com/badlogic/pi-mono) package that detects Mermaid fenced blocks, renders them inline in the terminal, and opens a proper SVG viewer for full-quality inspection.
+Render Mermaid fenced blocks inline in [Pi](https://github.com/badlogic/pi-mono), then open the same diagrams in a larger SVG viewer when you need more space.
 
-Created by [Fabio Rizzo Matos](https://github.com/fabiorizzomatos) · contact: `fabiorizzo@vindula.com.br`
+Created by [Fabio Rizzo Matos](https://github.com/fabiorizzomatos) · `fabiorizzo@vindula.com.br`
 
-## What it does
+## Highlights
 
-This package gives Pi two Mermaid-focused behaviors:
-
-- detects fenced ```` ```mermaid ```` blocks in assistant responses and user prompts
-- shows an inline preview for assistant responses directly in the chat
-- opens Mermaid diagrams with:
-  - `/mermaid-open` for the latest diagram directly in the browser
-  - `/mermaid` for the multi-diagram viewer
-  - `Ctrl+Shift+M` for the multi-diagram viewer
-
-So if the operator or agent emits Mermaid in a normal fenced block, Pi can surface it visually instead of leaving only the raw code visible.
+- inline Mermaid previews in Pi chat
+- `/mermaid-open` to open the latest diagram directly in the browser
+- `/mermaid` and `Ctrl+Shift+M` for a session-level viewer
+- real SVG-based rendering with terminal image previews
+- ASCII fallback when inline image protocols are unavailable
 
 ## Install
 
-### From GitHub
+### Latest from GitHub
 
 ```bash
 pi install git:github.com/vindulaintranet/pi-extension-mermaid
 ```
 
-### Pin to a release tag
+### Pin to a release
 
 ```bash
 pi install git:github.com/vindulaintranet/pi-extension-mermaid@v0.1.0
 ```
 
-### From a local path
+### Local development checkout
 
 ```bash
 pi install /absolute/path/to/pi-extension-mermaid
 ```
 
-After installing, restart Pi or run:
+Then restart Pi or run:
 
 ```text
 /reload
 ```
 
-## Usage
+## Commands and shortcut
 
-Ask Pi or your model to answer with a Mermaid fenced block:
+| Action | What it does |
+| --- | --- |
+| `/mermaid-open` | Opens the latest Mermaid diagram directly in the browser |
+| `/mermaid` | Opens the multi-diagram viewer for the current session |
+| `Ctrl+Shift+M` | Shortcut for the multi-diagram viewer |
+
+## Typical flow
+
+Ask Pi or your model to answer with a fenced Mermaid block:
 
 ````markdown
 ```mermaid
@@ -60,122 +63,104 @@ flowchart LR
 ```
 ````
 
-What happens:
-- the message gets scanned for Mermaid fences
-- diagrams render inline in the chat stream
-- if you want a larger view, use `/mermaid-open` or `/mermaid`
-- the inline preview exposes a clickable `abrir grande` link for opening the SVG directly
-- `/mermaid-open` opens the latest Mermaid directly in the browser
-- `/mermaid` and `Ctrl+Shift+M` open the full SVG viewer
+What happens next:
+
+1. the extension detects Mermaid fences in assistant responses and user prompts
+2. the diagram is rendered inline in the chat
+3. the extension stores the diagram metadata outside the LLM context
+4. you can open a larger view with `/mermaid-open` or `/mermaid`
 
 ## Rendering model
 
 ### Inline preview
 
-On terminals with inline image support, the extension renders PNG previews derived from Mermaid SVG.
+When the terminal supports inline images, the extension renders a PNG preview derived from normalized Mermaid SVG.
 
-Supported terminals include:
-- Kitty
+Best experience:
 - Ghostty
+- Kitty
 - WezTerm
 - iTerm2
 
-The extension now always renders the inline preview when the terminal supports images. If you want a larger view, use `/mermaid-open` or `/mermaid`.
+If the terminal does not support inline images, the extension falls back to ASCII output instead of failing.
 
-### Full viewer
+### Large view
 
-`/mermaid-open` opens the latest Mermaid SVG directly in the browser.
+#### `/mermaid-open`
 
-`/mermaid` and `Ctrl+Shift+M` try to open a browser-based SVG viewer first.
+This is the most reliable way to inspect a diagram at full size.
 
-That viewer:
-- uses the real Mermaid SVG
-- keeps the diagram sharp
-- lets the browser handle scrolling for large flowcharts
-- supports previous/next navigation for multiple diagrams
+It opens the latest Mermaid diagram directly in the browser using the local system opener:
+- `open` on macOS
+- `xdg-open` on Linux
+- `start` on Windows
 
-If opening the browser is not possible, the extension falls back to the terminal viewer.
+#### `/mermaid` and `Ctrl+Shift+M`
 
-### Fallbacks
+These open the session viewer.
 
-- no image protocol in terminal → ASCII fallback inline
-- browser viewer unavailable → terminal image viewer
-- no terminal image support either → ASCII viewer
+The viewer tries to open a browser-based SVG experience first. If that is not possible, it falls back to the terminal viewer.
 
-## Implementation notes
+## Terminal hyperlink note
 
-- Uses [`beautiful-mermaid`](https://www.npmjs.com/package/beautiful-mermaid) to generate Mermaid SVG.
-- Uses [`@resvg/resvg-js`](https://www.npmjs.com/package/@resvg/resvg-js) to rasterize terminal previews.
-- Normalizes the generated SVG before rasterization so `resvg` does not choke on CSS variables and `color-mix()` derived colors.
-- Persists normalized SVG files under temp storage so the terminal preview can expose a clickable `file://` link.
-- Appends assistant previews after `agent_end`, avoiding the ordering bug where a custom preview could appear before the original assistant response.
-- Stores diagram metadata in custom Pi session messages so diagrams survive normal session flow.
-- Filters those custom messages out of LLM context, so the model does not see internal rendering payloads.
+The inline preview also shows an `abrir grande` hyperlink.
 
-## Quality checks
+That link is convenient, but terminal behavior varies. Some terminals do not open local `file://` links reliably from OSC 8 hyperlinks. When in doubt, prefer:
 
-Run everything locally with:
+```text
+/mermaid-open
+```
+
+## How it works
+
+- `beautiful-mermaid` generates the Mermaid SVG
+- the SVG is normalized so `@resvg/resvg-js` can rasterize it predictably
+- the extension keeps both:
+  - a PNG version for inline terminal previews
+  - an SVG version for large browser viewing
+- custom Mermaid messages are filtered out of the LLM context
+- assistant previews are appended after `agent_end` so the preview does not appear to duplicate or reorder the original reply
+
+## Development
 
 ```bash
 npm install
 npm run validate
 ```
 
-This runs:
-- unit tests for Mermaid block extraction helpers
-- renderer tests for SVG normalization, SVG file persistence, and PNG generation
+Validation includes:
+- extraction helper tests
+- SVG normalization and PNG generation tests
 - bundle validation for the Pi extension entrypoint
-- `npm pack --dry-run` to validate package contents
+- `npm pack --dry-run`
 
-## Contributions
+## Release model
 
-If you want to contribute:
+This repository is meant to be installed from Git refs, not from the npm registry.
 
-1. fork the repository
-2. create a branch
-3. run `npm run validate`
-4. open a pull request
+- branch installs move with `pi update`
+- tag installs stay pinned until the user chooses a newer tag
 
-See:
-- [CONTRIBUTING.md](./CONTRIBUTING.md)
-- [RELEASING.md](./RELEASING.md)
-
-## How updates reach Pi users
-
-### Users installed from the default branch
-
-```bash
-pi install git:github.com/vindulaintranet/pi-extension-mermaid
-```
-
-They can later run:
-
-```bash
-pi update
-```
-
-and Pi will pull the latest package state from the default branch.
-
-### Users installed from a pinned tag
+Example pinned install:
 
 ```bash
 pi install git:github.com/vindulaintranet/pi-extension-mermaid@v0.1.0
 ```
 
-Pinned installs do not move automatically on `pi update`. They stay on that exact ref until the user upgrades intentionally.
+## Repository layout
 
-## Package manifest
+- `mermaid.ts` — Pi extension entrypoint
+- `mermaid-extract.ts` — Mermaid fence extraction helpers
+- `mermaid-render.ts` — SVG normalization, PNG rasterization, cache
+- `mermaid-viewer.ts` — browser/terminal viewer logic
+- `test/` — extraction and renderer tests
+- `docs/agent/notes/` — implementation notes for non-trivial changes
 
-This repository is a Pi package via `package.json`:
+## Contributing
 
-```json
-{
-  "keywords": ["pi-package"],
-  "pi": {
-    "extensions": ["./mermaid.ts"]
-  }
-}
-```
+See:
+- [CONTRIBUTING.md](./CONTRIBUTING.md)
+- [RELEASING.md](./RELEASING.md)
 
 ## License
 

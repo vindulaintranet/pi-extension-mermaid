@@ -2,16 +2,14 @@
 
 Thanks for contributing to `pi-extension-mermaid`.
 
-## What this repository contains
+## Scope of this repository
 
-This repository ships a small Pi package with one extension:
+This repository ships a focused Pi package for Mermaid rendering.
 
-- `mermaid.ts`
-
-It provides:
-- inline Mermaid rendering for fenced `mermaid` blocks
-- a full viewer via `Ctrl+Shift+M`
-- a full viewer via `/mermaid`
+Main behaviors:
+- render fenced `mermaid` blocks inline in Pi chat
+- open the latest diagram with `/mermaid-open`
+- open the session viewer with `/mermaid` or `Ctrl+Shift+M`
 
 ## Local setup
 
@@ -20,7 +18,7 @@ npm install
 npm run validate
 ```
 
-## Test commands
+## Validation commands
 
 ```bash
 npm test
@@ -29,24 +27,27 @@ npm run check:pack
 npm run validate
 ```
 
-What these checks cover:
-- unit tests for Mermaid block extraction helpers
-- bundle/syntax validation for the Pi extension entrypoint
-- package validation with `npm pack --dry-run`
+These checks cover:
+- Mermaid block extraction
+- SVG normalization and PNG rendering
+- bundle validation for the Pi extension entrypoint
+- package contents via `npm pack --dry-run`
 
 ## Making a change
 
-1. Create a branch from `main`
-2. Make the change
-3. Update docs if behavior changed:
+1. Start from `main`
+2. Make the smallest coherent change you can
+3. Update docs when behavior changes:
    - `README.md`
    - `CHANGELOG.md`
-   - `RELEASING.md` when release flow changes
-4. Run:
-   ```bash
-   npm run validate
-   ```
-5. Open a pull request
+   - `RELEASING.md` if release flow changed
+4. For non-trivial work, add or update a note in:
+   - `docs/agent/notes/`
+5. Run:
+
+```bash
+npm run validate
+```
 
 ## Pull requests
 
@@ -54,37 +55,25 @@ A good PR should include:
 - what changed
 - why it changed
 - how it was tested
-- any Pi compatibility or release implications
+- any terminal-compatibility, Pi-compatibility, or release implications
 
-## Maintainer merge flow
+## Maintainer release flow
 
-For maintainers, the normal flow is:
+If a change is ready to publish, follow [RELEASING.md](./RELEASING.md).
 
-1. Review PR
-2. Ensure CI is green
-3. Squash merge or merge commit into `main`
-4. If the change should be published, follow `RELEASING.md`
+## How Pi users consume updates
 
-## How Pi users get updates
-
-### Unpinned git install
+### Moving branch install
 
 ```bash
 pi install git:github.com/vindulaintranet/pi-extension-mermaid
-```
-
-In this case, users can later run:
-
-```bash
 pi update
 ```
 
-Pi will pull the latest default branch state for the package.
-
-### Pinned git install
+### Pinned release install
 
 ```bash
 pi install git:github.com/vindulaintranet/pi-extension-mermaid@v0.1.0
 ```
 
-Pinned installs are intentionally stable. `pi update` skips them until the user decides to move to another tag/ref.
+Pinned installs are intentionally stable and do not move automatically on `pi update`.
