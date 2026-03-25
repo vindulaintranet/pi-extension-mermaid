@@ -3,6 +3,10 @@ import { calculateImageRows, getCellDimensions, visibleWidth } from "@mariozechn
 import { Resvg } from "@resvg/resvg-js";
 import { THEMES, renderMermaidASCII, renderMermaidSVG, type DiagramColors } from "beautiful-mermaid";
 import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 export type MermaidPreset = {
   key: string;
@@ -29,6 +33,7 @@ export type RenderedDiagramImage = {
 
 export type CachedDiagram = {
   svg: RenderedDiagramSvg;
+  svgUrl: string;
   image: RenderedDiagramImage;
   asciiByPreset: Map<string, RenderedDiagramAscii>;
 };
@@ -84,6 +89,11 @@ export function renderSvgWithCache(cache: RenderCache, code: string): RenderedDi
 export function renderImageWithCache(cache: RenderCache, code: string): RenderedDiagramImage {
   const entry = getOrCreateCacheEntry(cache, code);
   return entry.image;
+}
+
+export function getSvgUrlWithCache(cache: RenderCache, code: string): string {
+  const entry = getOrCreateCacheEntry(cache, code);
+  return entry.svgUrl;
 }
 
 export function estimateRowsForWidth(dimensions: ImageDimensions, maxWidthCells: number): number {
@@ -191,6 +201,7 @@ function renderDiagram(code: string): CachedDiagram {
         heightPx: Math.max(1, Math.round(base.height || raster.height)),
       },
     },
+    svgUrl: persistSvgToTempFile(code, svg),
     image: {
       pngBase64: raster.asPng().toString("base64"),
       dimensions: {
@@ -211,6 +222,21 @@ function evictIfNeeded(cache: RenderCache): void {
   if (cache.map.size <= cache.maxEntries) return;
   const oldest = cache.map.keys().next().value;
   if (typeof oldest === "string") cache.map.delete(oldest);
+}
+
+function persistSvgToTempFile(code: string, svg: string): string {
+  const directory = join(tmpdir(), "pi-extension-mermaid");
+  if (!existsSync(directory)) {
+    mkdirSync(directory, { recursive: true });
+  }
+
+  const filename = `mermaid-${hashCode(code)}.svg`;
+  const filePath = join(directory, filename);
+  if (!existsSync(filePath)) {
+    writeFileSync(filePath, svg, "utf8");
+  }
+
+  return pathToFileURL(filePath).href;
 }
 
 function normalizeSvgForRaster(svg: string, colors: DiagramColors): string {

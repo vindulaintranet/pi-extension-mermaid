@@ -10,7 +10,9 @@ This package mirrors the standalone packaging direction already used for `pi-ext
 - Keep the package focused on Mermaid only.
 - Generate Mermaid SVG with `beautiful-mermaid`.
 - Normalize the SVG before rasterizing it with `@resvg/resvg-js`, because the raw SVG relies on CSS variables and `color-mix()` that do not rasterize cleanly in `resvg`.
+- Persist a normalized SVG file to temp storage so the terminal preview can expose a clickable `file://` link for opening the diagram large in the browser.
 - Render inline PNG previews only when the resulting preview fits the terminal reasonably well.
+- Avoid injecting the preview from `message_end`, because that can place the custom message before the assistant message in history and look like duplicated output. Instead, collect diagrams and append the preview after `agent_end`.
 - For full-quality viewing, open a browser-based SVG viewer first and keep terminal viewers as fallback paths.
 - Keep ASCII rendering only as a fallback for terminals without inline image support.
 - Store diagram metadata in custom Pi messages and hide those messages from LLM context.
@@ -35,6 +37,7 @@ This package mirrors the standalone packaging direction already used for `pi-ext
 - extraction helper tests
 - renderer normalization test
 - PNG generation test
+- SVG file URL persistence test
 - bundle validation
 - `npm pack --dry-run`
 
@@ -44,5 +47,5 @@ This package mirrors the standalone packaging direction already used for `pi-ext
 - On headless or restricted environments, the extension falls back to terminal viewers.
 
 ## Next
-- Confirm the new preview behavior in a real Pi session.
+- Confirm the new preview ordering in a real Pi session.
 - Publish a tagged release once the visual result is confirmed.

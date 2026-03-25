@@ -10,7 +10,7 @@ import { Image, Key, getCapabilities, matchesKey, visibleWidth } from "@mariozec
 import type { MermaidContextSlice } from "./mermaid-extract.ts";
 import type { RenderCache } from "./mermaid-render.ts";
 
-import { pickBestPreset, renderImageWithCache, renderSvgWithCache } from "./mermaid-render.ts";
+import { getSvgUrlWithCache, pickBestPreset, renderImageWithCache, renderSvgWithCache } from "./mermaid-render.ts";
 
 export type DiagramEntry = {
   id: string;
@@ -229,6 +229,15 @@ class MermaidImageViewer {
     }
 
     lines.push(...this.image.render(width));
+    lines.push(
+      truncate(
+        this.theme.fg(
+          "accent",
+          clickableOpenHint(getSvgUrlWithCache(this.cache, entry.block.code), getOpenHintLabel("abrir grande")),
+        ),
+        width,
+      ),
+    );
 
     const after = summarizeContext(entry.context.afterLines);
     if (after) {
@@ -604,4 +613,13 @@ function padToWidth(text: string, target: number): string {
   const width = visibleWidth(text);
   if (width >= target) return text;
   return text + " ".repeat(target - width);
+}
+
+function clickableOpenHint(url: string, label: string): string {
+  return `\u001b]8;;${url}\u0007${label}\u001b]8;;\u0007`;
+}
+
+function getOpenHintLabel(action: string): string {
+  const modifier = process.platform === "darwin" ? "Cmd+click" : "Ctrl+click";
+  return `${modifier} ${action}`;
 }

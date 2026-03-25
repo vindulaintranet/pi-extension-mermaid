@@ -10,6 +10,7 @@ import {
 import {
   createCache,
   estimateRowsForWidth,
+  getSvgUrlWithCache,
   hashCode,
   pickBestPreset,
   renderImageWithCache,
@@ -67,9 +68,14 @@ export default function mermaidInlineExtension(pi: ExtensionAPI) {
                 currentImageKey = imageKey;
               }
 
+              const svgUrl = getSvgUrlWithCache(cache, entry.block.code);
               return [
                 label,
                 ...imageComponent.render(width),
+                truncateToWidth(
+                  theme.fg("accent", clickableOpenHint(svgUrl, getOpenHintLabel("abrir grande"))),
+                  width,
+                ),
                 truncateToWidth(theme.fg("dim", "/mermaid • ctrl+shift+m"), width),
               ];
             }
@@ -109,24 +115,33 @@ export default function mermaidInlineExtension(pi: ExtensionAPI) {
     };
   });
 
-  pi.on("message_end", async (event) => {
-    const message = event.message as { role?: string; customType?: string; content?: unknown };
-    if (message.role !== "assistant") return;
-    if (message.customType === CUSTOM_TYPE) return;
+  pi.on("agent_end", async (event) => {
+    const pendingDisplay: DiagramEntry[] = [];
 
-    const text = extractText(message.content);
-    if (!text) return;
+    for (const message of event.messages as Array<{ role?: string; customType?: string; content?: unknown }>) {
+      if (message.role !== "assistant") continue;
+      if (message.customType === CUSTOM_TYPE) continue;
 
-    const blocks = extractMermaidBlocks(text);
-    if (blocks.length === 0) return;
+      const text = extractText(message.content);
+      if (!text) continue;
 
-    for (const block of blocks) {
-      if (block.code.length > MAX_CODE_LENGTH) continue;
-      const entry = createDiagramEntry(text, block, "assistant");
-      if (addDiagram(entry)) {
-        pushDiagramMessage(pi, entry);
+      const blocks = extractMermaidBlocks(text);
+      for (const block of blocks) {
+        if (block.code.length > MAX_CODE_LENGTH) continue;
+        const entry = createDiagramEntry(text, block, "assistant");
+        if (addDiagram(entry)) {
+          pendingDisplay.push(entry);
+        }
       }
     }
+
+    if (pendingDisplay.length === 0) return;
+
+    setTimeout(() => {
+      for (const entry of pendingDisplay) {
+        pushDiagramMessage(pi, entry);
+      }
+    }, 0);
   });
 
   pi.on("input", async (event) => {
@@ -141,9 +156,7 @@ export default function mermaidInlineExtension(pi: ExtensionAPI) {
     for (const block of blocks) {
       if (block.code.length > MAX_CODE_LENGTH) continue;
       const entry = createDiagramEntry(text, block, "user");
-      if (addDiagram(entry)) {
-        pushDiagramMessage(pi, entry);
-      }
+      addDiagram(entry);
     }
 
     return { action: "continue" as const };
@@ -203,15 +216,12 @@ export default function mermaidInlineExtension(pi: ExtensionAPI) {
   }
 
   function pushDiagramMessage(extension: ExtensionAPI, entry: DiagramEntry): void {
-    extension.sendMessage(
-      {
-        customType: CUSTOM_TYPE,
-        content: "",
-        display: true,
-        details: entry,
-      },
-      { deliverAs: "followUp" },
-    );
+    extension.sendMessage({
+      customType: CUSTOM_TYPE,
+      content: "",
+      display: true,
+      details: entry,
+    });
   }
 
   function ensureDiagramsLoaded(ctx: ExtensionContext): void {
@@ -284,4 +294,13 @@ function isDiagramEntry(value: unknown): value is DiagramEntry {
     Array.isArray(entry.context?.afterLines) &&
     (entry.source === "assistant" || entry.source === "user" || entry.source === "command")
   );
+}
+
+function clickableOpenHint(url: string, label: string): string {
+  return `\u001b]8;;${url}\u0007${label}\u001b]8;;\u0007`;
+}
+
+function getOpenHintLabel(action: string): string {
+  const modifier = process.platform === "darwin" ? "Cmd+click" : "Ctrl+click";
+  return `${modifier} ${action}`;
 }

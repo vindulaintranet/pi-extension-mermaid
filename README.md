@@ -13,7 +13,7 @@ Created by [Fabio Rizzo Matos](https://github.com/fabiorizzomatos) · contact: `
 This package gives Pi two Mermaid-focused behaviors:
 
 - detects fenced ```` ```mermaid ```` blocks in assistant responses and user prompts
-- shows an inline preview when the diagram fits the terminal well
+- shows an inline preview for assistant responses when the diagram fits the terminal well
 - opens a full SVG viewer with:
   - `Ctrl+Shift+M`
   - `/mermaid`
@@ -63,6 +63,7 @@ What happens:
 - the message gets scanned for Mermaid fences
 - compact diagrams can render inline in the chat stream
 - large or tall diagrams skip the inline preview instead of spamming the terminal
+- the inline preview exposes a clickable `abrir grande` link for opening the SVG directly
 - `/mermaid` and `Ctrl+Shift+M` open the full SVG viewer
 
 ## Rendering model
@@ -102,6 +103,8 @@ If opening the browser is not possible, the extension falls back to the terminal
 - Uses [`beautiful-mermaid`](https://www.npmjs.com/package/beautiful-mermaid) to generate Mermaid SVG.
 - Uses [`@resvg/resvg-js`](https://www.npmjs.com/package/@resvg/resvg-js) to rasterize terminal previews.
 - Normalizes the generated SVG before rasterization so `resvg` does not choke on CSS variables and `color-mix()` derived colors.
+- Persists normalized SVG files under temp storage so the terminal preview can expose a clickable `file://` link.
+- Appends assistant previews after `agent_end`, avoiding the ordering bug where a custom preview could appear before the original assistant response.
 - Stores diagram metadata in custom Pi session messages so diagrams survive normal session flow.
 - Filters those custom messages out of LLM context, so the model does not see internal rendering payloads.
 
@@ -116,7 +119,7 @@ npm run validate
 
 This runs:
 - unit tests for Mermaid block extraction helpers
-- renderer tests for SVG normalization and PNG generation
+- renderer tests for SVG normalization, SVG file persistence, and PNG generation
 - bundle validation for the Pi extension entrypoint
 - `npm pack --dry-run` to validate package contents
 

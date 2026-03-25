@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createCache, renderImageWithCache, renderSvgWithCache } from "../mermaid-render.ts";
+import { createCache, getSvgUrlWithCache, renderImageWithCache, renderSvgWithCache } from "../mermaid-render.ts";
 
 const SAMPLE = `flowchart TD
   A[User] --> B{Cached?}
@@ -27,4 +27,12 @@ test("renderImageWithCache returns a PNG payload", () => {
   assert.ok(rendered.pngBase64.startsWith("iVBORw0KGgo"));
   assert.ok(rendered.dimensions.widthPx > 0);
   assert.ok(rendered.dimensions.heightPx > 0);
+});
+
+test("getSvgUrlWithCache persists a clickable file URL", () => {
+  const cache = createCache();
+  const url = getSvgUrlWithCache(cache, SAMPLE);
+
+  assert.ok(url.startsWith("file://"));
+  assert.ok(url.endsWith(".svg"));
 });
