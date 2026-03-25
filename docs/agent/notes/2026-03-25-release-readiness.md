@@ -18,6 +18,9 @@ The repository is already functionally ready, but the release materials need to 
 - `npm run validate`
 - `git tag -a v0.1.0 -m "v0.1.0"`
 - `git push origin main --follow-tags`
+- `git ls-remote --tags origin`
+- `gh run watch -R vindulaintranet/pi-extension-mermaid <release-run> --exit-status`
+- `curl -fsSL https://api.github.com/repos/vindulaintranet/pi-extension-mermaid/releases/tags/v0.1.0`
 
 ## Files changed
 - `README.md`
@@ -35,5 +38,5 @@ The repository is already functionally ready, but the release materials need to 
 - Public release notes and README are accurate to the current implementation, but future behavior changes must be reflected before the next tag.
 
 ## Next
-- Verify the GitHub release workflow finishes and the `v0.1.0` release page is populated.
 - Optionally test pinned installation from a fresh Pi environment.
+- Consider updating the GitHub release action before the Node.js 20 deprecation becomes enforced on runners.
