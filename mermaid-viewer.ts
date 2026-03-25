@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { Image, Key, getCapabilities, matchesKey, visibleWidth } from "@mariozechner/pi-tui";
+import { Image, Key, allocateImageId, getCapabilities, matchesKey, visibleWidth } from "@mariozechner/pi-tui";
 
 import type { MermaidContextSlice } from "./mermaid-extract.ts";
 import type { RenderCache } from "./mermaid-render.ts";
@@ -180,6 +180,7 @@ class MermaidImageViewer {
   private cachedWidth?: number;
   private image?: Image;
   private currentImageKey?: string;
+  private imageId = allocateImageId();
 
   constructor(
     private diagrams: DiagramEntry[],
@@ -243,6 +244,7 @@ class MermaidImageViewer {
         {
           maxWidthCells,
           filename: `mermaid-${entry.id}.png`,
+          imageId: this.imageId,
         },
         rendered.dimensions,
       );

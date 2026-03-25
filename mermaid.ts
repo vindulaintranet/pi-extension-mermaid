@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
-import { Image, getCapabilities, truncateToWidth } from "@mariozechner/pi-tui";
+import { Image, allocateImageId, getCapabilities, truncateToWidth } from "@mariozechner/pi-tui";
 
 import {
   captureContextSlice,
@@ -30,6 +30,7 @@ export default function mermaidInlineExtension(pi: ExtensionAPI) {
     const entry = message.details as DiagramEntry | undefined;
     let imageComponent: Image | undefined;
     let currentImageKey: string | undefined;
+    let imageId: number | undefined;
 
     return {
       render(width: number): string[] {
@@ -57,6 +58,7 @@ export default function mermaidInlineExtension(pi: ExtensionAPI) {
                 {
                   maxWidthCells,
                   filename: `mermaid-${entry.id}.png`,
+                  imageId: (imageId ??= allocateImageId()),
                 },
                 renderedImage.dimensions,
               );
