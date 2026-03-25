@@ -8,7 +8,10 @@ This package mirrors the standalone packaging direction already used for `pi-ext
 
 ## Decisions
 - Keep the package focused on Mermaid only.
-- Render Mermaid as real images in supported terminals using `beautiful-mermaid` for SVG generation and `@resvg/resvg-js` for PNG rasterization.
+- Generate Mermaid SVG with `beautiful-mermaid`.
+- Normalize the SVG before rasterizing it with `@resvg/resvg-js`, because the raw SVG relies on CSS variables and `color-mix()` that do not rasterize cleanly in `resvg`.
+- Render inline PNG previews only when the resulting preview fits the terminal reasonably well.
+- For full-quality viewing, open a browser-based SVG viewer first and keep terminal viewers as fallback paths.
 - Keep ASCII rendering only as a fallback for terminals without inline image support.
 - Store diagram metadata in custom Pi messages and hide those messages from LLM context.
 - Ship a standalone package entrypoint at `mermaid.ts` with small helper files for extraction, rendering, and viewer behavior.
@@ -26,17 +29,20 @@ This package mirrors the standalone packaging direction already used for `pi-ext
 - `README.md`
 - `CHANGELOG.md`
 - `test/mermaid-extract.test.ts`
+- `test/mermaid-render.test.ts`
 
 ## Tests
 - extraction helper tests
+- renderer normalization test
+- PNG generation test
 - bundle validation
 - `npm pack --dry-run`
-- runtime smoke test for PNG rasterization via local Node script
 
 ## Risks
 - Runtime rendering now depends on native platform bindings from `@resvg/resvg-js` being installed correctly on the target machine.
-- Inline image quality still depends on the terminal supporting Pi's image protocols.
-- On unsupported terminals, the experience still falls back to ASCII.
+- Browser viewer quality depends on the local machine being able to open a browser from the Pi process.
+- On headless or restricted environments, the extension falls back to terminal viewers.
 
 ## Next
-- Publish a tagged release once the visual result is confirmed in real Pi sessions.
+- Confirm the new preview behavior in a real Pi session.
+- Publish a tagged release once the visual result is confirmed.

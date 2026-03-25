@@ -9,6 +9,7 @@ import {
 } from "./mermaid-extract.ts";
 import {
   createCache,
+  estimateRowsForWidth,
   hashCode,
   pickBestPreset,
   renderImageWithCache,
@@ -19,6 +20,8 @@ import { openMermaidViewer, type DiagramEntry } from "./mermaid-viewer.ts";
 const CUSTOM_TYPE = "pi-extension-mermaid";
 const MAX_CODE_LENGTH = 20_000;
 const MAX_DIAGRAMS = 100;
+const INLINE_MAX_WIDTH_CELLS = 72;
+const INLINE_MAX_ROWS = 22;
 
 export default function mermaidInlineExtension(pi: ExtensionAPI) {
   const cache: RenderCache = createCache();
@@ -27,7 +30,7 @@ export default function mermaidInlineExtension(pi: ExtensionAPI) {
   pi.registerMessageRenderer(CUSTOM_TYPE, (message, _options, theme) => {
     const entry = message.details as DiagramEntry | undefined;
     let imageComponent: Image | undefined;
-    let currentImageCode: string | undefined;
+    let currentImageKey: string | undefined;
 
     return {
       render(width: number): string[] {
@@ -43,26 +46,43 @@ export default function mermaidInlineExtension(pi: ExtensionAPI) {
 
           if (getCapabilities().images) {
             const renderedImage = renderImageWithCache(cache, entry.block.code);
-            if (!imageComponent || currentImageCode !== entry.block.code) {
-              imageComponent = new Image(
-                renderedImage.pngBase64,
-                "image/png",
-                {
-                  fallbackColor: (text: string) => theme.fg("dim", text),
-                },
-                {
-                  maxWidthCells: 120,
-                  filename: `mermaid-${entry.id}.png`,
-                },
-                renderedImage.dimensions,
-              );
-              currentImageCode = entry.block.code;
+            const maxWidthCells = Math.max(24, Math.min(INLINE_MAX_WIDTH_CELLS, width - 2));
+            const estimatedRows = estimateRowsForWidth(renderedImage.dimensions, maxWidthCells);
+
+            if (estimatedRows <= INLINE_MAX_ROWS) {
+              const imageKey = `${entry.id}:${maxWidthCells}`;
+              if (!imageComponent || currentImageKey !== imageKey) {
+                imageComponent = new Image(
+                  renderedImage.pngBase64,
+                  "image/png",
+                  {
+                    fallbackColor: (text: string) => theme.fg("dim", text),
+                  },
+                  {
+                    maxWidthCells,
+                    filename: `mermaid-${entry.id}.png`,
+                  },
+                  renderedImage.dimensions,
+                );
+                currentImageKey = imageKey;
+              }
+
+              return [
+                label,
+                ...imageComponent.render(width),
+                truncateToWidth(theme.fg("dim", "/mermaid • ctrl+shift+m"), width),
+              ];
             }
 
             return [
               label,
-              ...imageComponent.render(width),
-              truncateToWidth(theme.fg("dim", "/mermaid • ctrl+shift+m"), width),
+              truncateToWidth(
+                theme.fg(
+                  "dim",
+                  `inline preview skipped (${estimatedRows} rows) — open the SVG viewer with /mermaid`,
+                ),
+                width,
+              ),
             ];
           }
 
@@ -85,9 +105,7 @@ export default function mermaidInlineExtension(pi: ExtensionAPI) {
           return [truncateToWidth(theme.fg("dim", `render error: ${message}`), width)];
         }
       },
-      invalidate() {
-        imageComponent?.invalidate();
-      },
+      invalidate() {},
     };
   });
 
@@ -105,8 +123,9 @@ export default function mermaidInlineExtension(pi: ExtensionAPI) {
     for (const block of blocks) {
       if (block.code.length > MAX_CODE_LENGTH) continue;
       const entry = createDiagramEntry(text, block, "assistant");
-      addDiagram(entry);
-      pushDiagramMessage(pi, entry);
+      if (addDiagram(entry)) {
+        pushDiagramMessage(pi, entry);
+      }
     }
   });
 
@@ -122,8 +141,9 @@ export default function mermaidInlineExtension(pi: ExtensionAPI) {
     for (const block of blocks) {
       if (block.code.length > MAX_CODE_LENGTH) continue;
       const entry = createDiagramEntry(text, block, "user");
-      addDiagram(entry);
-      pushDiagramMessage(pi, entry);
+      if (addDiagram(entry)) {
+        pushDiagramMessage(pi, entry);
+      }
     }
 
     return { action: "continue" as const };
@@ -173,8 +193,13 @@ export default function mermaidInlineExtension(pi: ExtensionAPI) {
     return { id, block, context, source };
   }
 
-  function addDiagram(entry: DiagramEntry): void {
+  function addDiagram(entry: DiagramEntry): boolean {
+    const signature = diagramSignature(entry);
+    if (diagrams.some((existing) => diagramSignature(existing) === signature)) {
+      return false;
+    }
     diagrams = [...diagrams, entry].slice(-MAX_DIAGRAMS);
+    return true;
   }
 
   function pushDiagramMessage(extension: ExtensionAPI, entry: DiagramEntry): void {

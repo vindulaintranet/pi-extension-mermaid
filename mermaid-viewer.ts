@@ -1,10 +1,16 @@
 import type { ExtensionContext, Theme } from "@mariozechner/pi-coding-agent";
+import { execSync } from "node:child_process";
+import { promises as fs } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
 import { Image, Key, getCapabilities, matchesKey, visibleWidth } from "@mariozechner/pi-tui";
 
 import type { MermaidContextSlice } from "./mermaid-extract.ts";
 import type { RenderCache } from "./mermaid-render.ts";
 
-import { pickBestPreset, renderImageWithCache } from "./mermaid-render.ts";
+import { pickBestPreset, renderImageWithCache, renderSvgWithCache } from "./mermaid-render.ts";
 
 export type DiagramEntry = {
   id: string;
@@ -31,12 +37,45 @@ export async function openMermaidViewer(args: {
 
   const startIndex = args.focusIndex ?? diagrams.length - 1;
 
+  if (await openBrowserViewer(ctx, diagrams, startIndex, cache)) {
+    return;
+  }
+
   if (getCapabilities().images) {
     await openImageViewer(ctx, diagrams, startIndex, cache);
     return;
   }
 
   await openAsciiViewer(ctx, diagrams, startIndex, cache);
+}
+
+async function openBrowserViewer(
+  ctx: ExtensionContext,
+  diagrams: DiagramEntry[],
+  focusIndex: number,
+  cache: RenderCache,
+): Promise<boolean> {
+  try {
+    const payload = diagrams.map((entry) => ({
+      id: entry.id,
+      source: entry.source,
+      lines: `${entry.block.startLine}-${entry.block.endLine}`,
+      before: summarizeContext(entry.context.beforeLines),
+      after: summarizeContext(entry.context.afterLines),
+      svg: renderSvgWithCache(cache, entry.block.code).svg,
+    }));
+
+    const html = buildBrowserViewerHtml(payload, focusIndex);
+    const filePath = join(tmpdir(), `pi-mermaid-viewer-${Date.now()}.html`);
+    await fs.writeFile(filePath, html, "utf8");
+
+    const url = pathToFileURL(filePath).href;
+    openExternal(url);
+    ctx.ui.notify("opened Mermaid SVG viewer in browser", "info");
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function openImageViewer(
@@ -119,7 +158,7 @@ class MermaidImageViewer {
   private cachedLines?: string[];
   private cachedWidth?: number;
   private image?: Image;
-  private currentCode?: string;
+  private currentImageKey?: string;
 
   constructor(
     private diagrams: DiagramEntry[],
@@ -139,11 +178,11 @@ class MermaidImageViewer {
 
     if (data === "[" || matchesKey(data, Key.shift("tab"))) {
       this.activeIndex = (this.activeIndex - 1 + this.diagrams.length) % this.diagrams.length;
-      this.currentCode = undefined;
+      this.currentImageKey = undefined;
       this.image = undefined;
     } else if (data === "]" || matchesKey(data, Key.tab)) {
       this.activeIndex = (this.activeIndex + 1) % this.diagrams.length;
-      this.currentCode = undefined;
+      this.currentImageKey = undefined;
       this.image = undefined;
     }
 
@@ -158,8 +197,12 @@ class MermaidImageViewer {
     const entry = this.diagrams[this.activeIndex];
     const lines: string[] = [];
     lines.push(
-      this.theme.fg("customMessageLabel", this.theme.bold(`mermaid ${this.activeIndex + 1}/${this.diagrams.length}`)),
+      this.theme.fg(
+        "customMessageLabel",
+        this.theme.bold(`mermaid ${this.activeIndex + 1}/${this.diagrams.length}`),
+      ),
     );
+    lines.push(this.theme.fg("dim", "browser viewer unavailable — showing terminal fallback"));
 
     const before = summarizeContext(entry.context.beforeLines);
     if (before) {
@@ -167,7 +210,9 @@ class MermaidImageViewer {
     }
 
     const rendered = renderImageWithCache(this.cache, entry.block.code);
-    if (!this.image || this.currentCode !== entry.block.code) {
+    const maxWidthCells = Math.max(32, Math.min(width - 2, 88));
+    const imageKey = `${entry.id}:${maxWidthCells}`;
+    if (!this.image || this.currentImageKey !== imageKey) {
       this.image = new Image(
         rendered.pngBase64,
         "image/png",
@@ -175,12 +220,12 @@ class MermaidImageViewer {
           fallbackColor: (text: string) => this.theme.fg("dim", text),
         },
         {
-          maxWidthCells: 180,
+          maxWidthCells,
           filename: `mermaid-${entry.id}.png`,
         },
         rendered.dimensions,
       );
-      this.currentCode = entry.block.code;
+      this.currentImageKey = imageKey;
     }
 
     lines.push(...this.image.render(width));
@@ -193,13 +238,12 @@ class MermaidImageViewer {
     lines.push(this.theme.fg("dim", "[] prev/next • esc close"));
     this.cachedLines = lines;
     this.cachedWidth = width;
-    return lines;
+    return this.cachedLines;
   }
 
   invalidate(): void {
     this.cachedLines = undefined;
     this.cachedWidth = undefined;
-    this.image?.invalidate();
   }
 }
 
@@ -323,12 +367,186 @@ class MermaidAsciiViewer {
   }
 }
 
+function buildBrowserViewerHtml(
+  diagrams: Array<{
+    id: string;
+    source: string;
+    lines: string;
+    before: string;
+    after: string;
+    svg: string;
+  }>,
+  focusIndex: number,
+): string {
+  const payload = JSON.stringify(diagrams);
+  const safeIndex = Math.max(0, Math.min(focusIndex, diagrams.length - 1));
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pi Mermaid Viewer</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0f14;
+      --panel: #11161d;
+      --border: #243040;
+      --fg: #e6edf3;
+      --muted: #8b949e;
+      --accent: #4493f8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px;
+      background: rgba(11, 15, 20, 0.92);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(8px);
+    }
+    .meta { color: var(--muted); font-size: 13px; }
+    .actions { display: flex; gap: 8px; }
+    button {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--fg);
+      border-radius: 10px;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+    button:hover { border-color: var(--accent); }
+    main {
+      padding: 18px;
+      display: grid;
+      gap: 14px;
+      grid-template-rows: auto auto 1fr auto;
+      min-height: 0;
+      flex: 1;
+    }
+    .card {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      border-radius: 14px;
+      padding: 14px;
+    }
+    .context {
+      white-space: pre-wrap;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .viewer {
+      overflow: auto;
+      min-height: 50vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+    }
+    .viewer svg {
+      max-width: none;
+      height: auto;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      border-radius: 12px;
+    }
+    .hint {
+      color: var(--muted);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <div id="title">Mermaid</div>
+      <div id="meta" class="meta"></div>
+    </div>
+    <div class="actions">
+      <button id="prev">← Prev</button>
+      <button id="next">Next →</button>
+    </div>
+  </header>
+  <main>
+    <div id="before" class="card context"></div>
+    <div class="card viewer"><div id="svg-host"></div></div>
+    <div id="after" class="card context"></div>
+    <div class="hint">Use ←/→ or [ ] to navigate. Scroll inside the SVG panel for large diagrams.</div>
+  </main>
+  <script>
+    const diagrams = ${payload};
+    let index = ${safeIndex};
+    const title = document.getElementById('title');
+    const meta = document.getElementById('meta');
+    const before = document.getElementById('before');
+    const after = document.getElementById('after');
+    const host = document.getElementById('svg-host');
+
+    function render() {
+      const current = diagrams[index];
+      title.textContent = 'Mermaid ' + (index + 1) + '/' + diagrams.length;
+      meta.textContent = current.source + ' • lines ' + current.lines;
+      before.textContent = current.before || 'No preceding context.';
+      after.textContent = current.after || 'No following context.';
+      host.innerHTML = current.svg;
+      history.replaceState(null, '', '#diagram-' + (index + 1));
+    }
+
+    function move(delta) {
+      index = (index + delta + diagrams.length) % diagrams.length;
+      render();
+    }
+
+    document.getElementById('prev').addEventListener('click', () => move(-1));
+    document.getElementById('next').addEventListener('click', () => move(1));
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowLeft' || event.key === '[') move(-1);
+      if (event.key === 'ArrowRight' || event.key === ']') move(1);
+    });
+
+    render();
+  </script>
+</body>
+</html>`;
+}
+
+function openExternal(url: string): void {
+  if (process.platform === "darwin") {
+    execSync(`open "${url}"`);
+    return;
+  }
+  if (process.platform === "linux") {
+    execSync(`xdg-open "${url}"`);
+    return;
+  }
+  if (process.platform === "win32") {
+    execSync(`start "" "${url}"`);
+    return;
+  }
+  throw new Error(`unsupported platform: ${process.platform}`);
+}
+
 function summarizeContext(lines: string[]): string {
   return lines
     .map((line) => line.trim())
     .filter(Boolean)
-    .join(" ")
-    .slice(0, 240);
+    .join("\n")
+    .slice(0, 2000);
 }
 
 function truncate(text: string, width: number): string {

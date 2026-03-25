@@ -4,7 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/vindulaintranet/pi-extension-mermaid)](https://github.com/vindulaintranet/pi-extension-mermaid/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-A standalone [Pi](https://github.com/badlogic/pi-mono) package that renders Mermaid code blocks as real inline images in chat and opens a larger image viewer on demand.
+A standalone [Pi](https://github.com/badlogic/pi-mono) package that detects Mermaid fenced blocks, renders clean terminal previews when they fit, and opens a proper SVG viewer for full-quality inspection.
 
 Created by [Fabio Rizzo Matos](https://github.com/fabiorizzomatos) · contact: `fabiorizzo@vindula.com.br`
 
@@ -12,16 +12,13 @@ Created by [Fabio Rizzo Matos](https://github.com/fabiorizzomatos) · contact: `
 
 This package gives Pi two Mermaid-focused behaviors:
 
-- renders fenced ```` ```mermaid ```` blocks inline as rendered diagrams
-- opens a larger Mermaid viewer with:
+- detects fenced ```` ```mermaid ```` blocks in assistant responses and user prompts
+- shows an inline preview when the diagram fits the terminal well
+- opens a full SVG viewer with:
   - `Ctrl+Shift+M`
   - `/mermaid`
 
-It watches both:
-- assistant responses
-- user prompts
-
-So if the operator or agent emits Mermaid in a normal fenced block, Pi shows a rendered diagram automatically instead of leaving only the raw code visible.
+So if the operator or agent emits Mermaid in a normal fenced block, Pi can surface it visually instead of leaving only the raw code visible.
 
 ## Install
 
@@ -64,37 +61,47 @@ flowchart LR
 
 What happens:
 - the message gets scanned for Mermaid fences
-- the diagram is rendered inline in the chat stream
-- the larger viewer stays available with `Ctrl+Shift+M` or `/mermaid`
+- compact diagrams can render inline in the chat stream
+- large or tall diagrams skip the inline preview instead of spamming the terminal
+- `/mermaid` and `Ctrl+Shift+M` open the full SVG viewer
 
 ## Rendering model
 
-### Supported terminals
+### Inline preview
 
-On terminals with inline image support, the extension renders actual diagram images:
+On terminals with inline image support, the extension renders PNG previews derived from Mermaid SVG.
+
+Supported terminals include:
 - Kitty
 - Ghostty
 - WezTerm
 - iTerm2
 
-### Fallback
+If a diagram would be too large for a sane inline preview, the extension shows a compact hint instead of forcing an unreadable giant image.
 
-If the terminal does not support inline images, the extension falls back to ASCII rendering instead of failing.
+### Full viewer
 
-## Viewer controls
+`/mermaid` and `Ctrl+Shift+M` try to open a browser-based SVG viewer first.
 
-Inside the viewer:
+That viewer:
+- uses the real Mermaid SVG
+- keeps the diagram sharp
+- lets the browser handle scrolling for large flowcharts
+- supports previous/next navigation for multiple diagrams
 
-- `[` previous diagram
-- `]` next diagram
-- `Esc` close
+If opening the browser is not possible, the extension falls back to the terminal viewer.
 
-If the terminal does not support inline images, the viewer falls back to the older ASCII mode with scroll controls.
+### Fallbacks
+
+- no image protocol in terminal → ASCII fallback inline
+- browser viewer unavailable → terminal image viewer
+- no terminal image support either → ASCII viewer
 
 ## Implementation notes
 
-- Uses [`beautiful-mermaid`](https://www.npmjs.com/package/beautiful-mermaid) to generate SVG diagrams.
-- Uses [`@resvg/resvg-js`](https://www.npmjs.com/package/@resvg/resvg-js) to rasterize Mermaid SVG into PNG for terminal image protocols.
+- Uses [`beautiful-mermaid`](https://www.npmjs.com/package/beautiful-mermaid) to generate Mermaid SVG.
+- Uses [`@resvg/resvg-js`](https://www.npmjs.com/package/@resvg/resvg-js) to rasterize terminal previews.
+- Normalizes the generated SVG before rasterization so `resvg` does not choke on CSS variables and `color-mix()` derived colors.
 - Stores diagram metadata in custom Pi session messages so diagrams survive normal session flow.
 - Filters those custom messages out of LLM context, so the model does not see internal rendering payloads.
 
@@ -109,6 +116,7 @@ npm run validate
 
 This runs:
 - unit tests for Mermaid block extraction helpers
+- renderer tests for SVG normalization and PNG generation
 - bundle validation for the Pi extension entrypoint
 - `npm pack --dry-run` to validate package contents
 
