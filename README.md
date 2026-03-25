@@ -14,9 +14,10 @@ This package gives Pi two Mermaid-focused behaviors:
 
 - detects fenced ```` ```mermaid ```` blocks in assistant responses and user prompts
 - shows an inline preview for assistant responses when the diagram fits the terminal well
-- opens a full SVG viewer with:
-  - `Ctrl+Shift+M`
-  - `/mermaid`
+- opens Mermaid diagrams with:
+  - `/mermaid-open` for the latest diagram directly in the browser
+  - `/mermaid` for the multi-diagram viewer
+  - `Ctrl+Shift+M` for the multi-diagram viewer
 
 So if the operator or agent emits Mermaid in a normal fenced block, Pi can surface it visually instead of leaving only the raw code visible.
 
@@ -64,6 +65,7 @@ What happens:
 - compact diagrams can render inline in the chat stream
 - large or tall diagrams skip the inline preview instead of spamming the terminal
 - the inline preview exposes a clickable `abrir grande` link for opening the SVG directly
+- `/mermaid-open` opens the latest Mermaid directly in the browser
 - `/mermaid` and `Ctrl+Shift+M` open the full SVG viewer
 
 ## Rendering model
@@ -81,6 +83,8 @@ Supported terminals include:
 If a diagram would be too large for a sane inline preview, the extension shows a compact hint instead of forcing an unreadable giant image.
 
 ### Full viewer
+
+`/mermaid-open` opens the latest Mermaid SVG directly in the browser.
 
 `/mermaid` and `Ctrl+Shift+M` try to open a browser-based SVG viewer first.
 

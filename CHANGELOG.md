@@ -10,4 +10,5 @@
 - render inline previews only when diagrams fit well in the terminal
 - append assistant previews after `agent_end` to avoid preview/response ordering glitches
 - expose a clickable `abrir grande` SVG link under terminal previews
+- add `/mermaid-open` to open the latest Mermaid directly in the browser
 - open a browser-based SVG viewer first for large diagrams, with terminal fallback

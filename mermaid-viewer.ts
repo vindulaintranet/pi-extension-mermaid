@@ -49,6 +49,27 @@ export async function openMermaidViewer(args: {
   await openAsciiViewer(ctx, diagrams, startIndex, cache);
 }
 
+export async function openMermaidDiagram(args: {
+  ctx: ExtensionContext;
+  entry: DiagramEntry;
+  cache: RenderCache;
+}): Promise<boolean> {
+  const { ctx, entry, cache } = args;
+
+  try {
+    const url = getSvgUrlWithCache(cache, entry.block.code);
+    openExternal(url);
+    if (ctx.hasUI) ctx.ui.notify("opened Mermaid diagram in browser", "info");
+    return true;
+  } catch (error) {
+    if (ctx.hasUI) {
+      const message = error instanceof Error ? error.message : String(error);
+      ctx.ui.notify(`failed to open Mermaid diagram: ${message}`, "error");
+    }
+    return false;
+  }
+}
+
 async function openBrowserViewer(
   ctx: ExtensionContext,
   diagrams: DiagramEntry[],
@@ -202,7 +223,7 @@ class MermaidImageViewer {
         this.theme.bold(`mermaid ${this.activeIndex + 1}/${this.diagrams.length}`),
       ),
     );
-    lines.push(this.theme.fg("dim", "browser viewer unavailable — showing terminal fallback"));
+    lines.push(this.theme.fg("dim", "browser viewer unavailable — showing terminal fallback (/mermaid-open abre o último)"));
 
     const before = summarizeContext(entry.context.beforeLines);
     if (before) {

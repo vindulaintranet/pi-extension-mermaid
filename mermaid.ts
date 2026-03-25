@@ -16,7 +16,7 @@ import {
   renderImageWithCache,
   type RenderCache,
 } from "./mermaid-render.ts";
-import { openMermaidViewer, type DiagramEntry } from "./mermaid-viewer.ts";
+import { openMermaidDiagram, openMermaidViewer, type DiagramEntry } from "./mermaid-viewer.ts";
 
 const CUSTOM_TYPE = "pi-extension-mermaid";
 const MAX_CODE_LENGTH = 20_000;
@@ -76,7 +76,7 @@ export default function mermaidInlineExtension(pi: ExtensionAPI) {
                   theme.fg("accent", clickableOpenHint(svgUrl, getOpenHintLabel("abrir grande"))),
                   width,
                 ),
-                truncateToWidth(theme.fg("dim", "/mermaid • ctrl+shift+m"), width),
+                truncateToWidth(theme.fg("dim", "/mermaid-open • /mermaid • ctrl+shift+m"), width),
               ];
             }
 
@@ -85,7 +85,7 @@ export default function mermaidInlineExtension(pi: ExtensionAPI) {
               truncateToWidth(
                 theme.fg(
                   "dim",
-                  `inline preview skipped (${estimatedRows} rows) — open the SVG viewer with /mermaid`,
+                  `inline preview skipped (${estimatedRows} rows) — open large with /mermaid-open`,
                 ),
                 width,
               ),
@@ -101,7 +101,7 @@ export default function mermaidInlineExtension(pi: ExtensionAPI) {
             theme.fg(
               "dim",
               overflowed
-                ? "fallback ASCII — use /mermaid for full view"
+                ? "fallback ASCII — use /mermaid-open or /mermaid"
                 : "ASCII fallback — terminal image protocol unavailable",
             ),
           ];
@@ -193,6 +193,19 @@ export default function mermaidInlineExtension(pi: ExtensionAPI) {
         return;
       }
       await openMermaidViewer({ ctx, diagrams, cache });
+    },
+  });
+
+  pi.registerCommand("mermaid-open", {
+    description: "Open the latest Mermaid diagram directly in the browser",
+    handler: async (_args, ctx) => {
+      ensureDiagramsLoaded(ctx);
+      const latest = diagrams.at(-1);
+      if (!latest) {
+        if (ctx.hasUI) ctx.ui.notify("no mermaid diagrams in session", "info");
+        return;
+      }
+      await openMermaidDiagram({ ctx, entry: latest, cache });
     },
   });
 
