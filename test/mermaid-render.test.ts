@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createCache, getSvgUrlWithCache, renderImageWithCache, renderSvgWithCache } from "../mermaid-render.ts";
+import { ensureMermaidRuntimeDependencies } from "../mermaid-runtime.ts";
 
 const SAMPLE = `flowchart TD
   A[User] --> B{Cached?}
@@ -9,7 +10,8 @@ const SAMPLE = `flowchart TD
   B -- No --> D[Resolve upstream]
   D --> C`;
 
-test("renderSvgWithCache normalizes SVG for rasterization", () => {
+test("renderSvgWithCache normalizes SVG for rasterization", async () => {
+  await ensureMermaidRuntimeDependencies();
   const cache = createCache();
   const rendered = renderSvgWithCache(cache, SAMPLE);
 
@@ -20,7 +22,8 @@ test("renderSvgWithCache normalizes SVG for rasterization", () => {
   assert.ok(rendered.dimensions.heightPx > 0);
 });
 
-test("renderImageWithCache returns a PNG payload", () => {
+test("renderImageWithCache returns a PNG payload", async () => {
+  await ensureMermaidRuntimeDependencies();
   const cache = createCache();
   const rendered = renderImageWithCache(cache, SAMPLE);
 
@@ -29,7 +32,8 @@ test("renderImageWithCache returns a PNG payload", () => {
   assert.ok(rendered.dimensions.heightPx > 0);
 });
 
-test("getSvgUrlWithCache persists a clickable file URL", () => {
+test("getSvgUrlWithCache persists a clickable file URL", async () => {
+  await ensureMermaidRuntimeDependencies();
   const cache = createCache();
   const url = getSvgUrlWithCache(cache, SAMPLE);
 

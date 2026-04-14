@@ -35,6 +35,7 @@
     "mermaid.ts",
     "mermaid-extract.ts",
     "mermaid-render.ts",
+    "mermaid-runtime.ts",
     "mermaid-viewer.ts",
     "README.md",
     "CHANGELOG.md",

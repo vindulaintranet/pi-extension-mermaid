@@ -36,6 +36,8 @@ pi install git:github.com/vindulaintranet/pi-extension-mermaid@v0.1.0
 pi install /absolute/path/to/pi-extension-mermaid
 ```
 
+Pi installs runtime dependencies automatically for git installs. For local-path installs, this extension bootstraps `beautiful-mermaid` and `@resvg/resvg-js` on first load when they are missing.
+
 Then restart Pi or run:
 
 ```text
@@ -114,6 +116,7 @@ That link is convenient, but terminal behavior varies. Some terminals do not ope
 ## How it works
 
 - `beautiful-mermaid` generates the Mermaid SVG
+- the extension self-checks its runtime dependencies on load and installs missing renderer packages in-place when needed
 - the SVG is normalized so `@resvg/resvg-js` can rasterize it predictably
 - the extension keeps both:
   - a PNG version for inline terminal previews

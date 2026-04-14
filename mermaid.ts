@@ -8,6 +8,10 @@ import {
   type MermaidBlock,
 } from "./mermaid-extract.ts";
 import {
+  ensureMermaidRuntimeDependencies,
+  getMermaidRuntimeStatusMessage,
+} from "./mermaid-runtime.ts";
+import {
   createCache,
   getSvgUrlWithCache,
   hashCode,
@@ -22,9 +26,17 @@ const MAX_CODE_LENGTH = 20_000;
 const MAX_DIAGRAMS = 100;
 const INLINE_MAX_WIDTH_CELLS = 72;
 
-export default function mermaidInlineExtension(pi: ExtensionAPI) {
+export default async function mermaidInlineExtension(pi: ExtensionAPI) {
   const cache: RenderCache = createCache();
   let diagrams: DiagramEntry[] = [];
+  const runtimeStatus = await ensureMermaidRuntimeDependencies();
+  const runtimeWarning = getMermaidRuntimeStatusMessage(runtimeStatus);
+
+  if (runtimeWarning) {
+    pi.on("session_start", async (_event, ctx) => {
+      if (ctx.hasUI) ctx.ui.notify(runtimeWarning, "warning");
+    });
+  }
 
   pi.registerMessageRenderer(CUSTOM_TYPE, (message, _options, theme) => {
     const entry = message.details as DiagramEntry | undefined;

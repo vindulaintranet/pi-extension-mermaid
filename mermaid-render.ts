@@ -1,12 +1,13 @@
 import type { ImageDimensions } from "@mariozechner/pi-tui";
 import { calculateImageRows, getCellDimensions, visibleWidth } from "@mariozechner/pi-tui";
-import { Resvg } from "@resvg/resvg-js";
-import { THEMES, renderMermaidASCII, renderMermaidSVG, type DiagramColors } from "beautiful-mermaid";
+import type { DiagramColors } from "beautiful-mermaid";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+
+import { getMermaidRuntimeModules } from "./mermaid-runtime.ts";
 
 export type MermaidPreset = {
   key: string;
@@ -51,11 +52,14 @@ export const PRESETS: MermaidPreset[] = [
   { key: "tightest", paddingX: 0, boxBorderPadding: 0 },
 ];
 
-const IMAGE_THEME: DiagramColors = {
-  ...THEMES["github-dark"],
-  surface: "#161b22",
-  border: "#30363d",
-};
+function getImageTheme(): DiagramColors {
+  const { THEMES } = getMermaidRuntimeModules();
+  return {
+    ...THEMES["github-dark"],
+    surface: "#161b22",
+    border: "#30363d",
+  };
+}
 
 const MIX = {
   textSec: 60,
@@ -111,6 +115,7 @@ export function renderAsciiWithCache(
     return existing;
   }
 
+  const { renderMermaidASCII } = getMermaidRuntimeModules();
   const raw = renderMermaidASCII(code, {
     paddingX: preset.paddingX,
     boxBorderPadding: preset.boxBorderPadding,
@@ -173,11 +178,13 @@ function getOrCreateCacheEntry(cache: RenderCache, code: string): CachedDiagram 
 }
 
 function renderDiagram(code: string): CachedDiagram {
-  const rawSvg = renderMermaidSVG(code, IMAGE_THEME);
-  const svg = normalizeSvgForRaster(rawSvg, IMAGE_THEME);
+  const { Resvg, renderMermaidSVG } = getMermaidRuntimeModules();
+  const imageTheme = getImageTheme();
+  const rawSvg = renderMermaidSVG(code, imageTheme);
+  const svg = normalizeSvgForRaster(rawSvg, imageTheme);
 
   const base = new Resvg(svg, {
-    background: IMAGE_THEME.bg,
+    background: imageTheme.bg,
   });
 
   const targetWidth = Math.max(
@@ -186,7 +193,7 @@ function renderDiagram(code: string): CachedDiagram {
   );
 
   const raster = new Resvg(svg, {
-    background: IMAGE_THEME.bg,
+    background: imageTheme.bg,
     fitTo:
       targetWidth === Math.round(base.width || 0)
         ? { mode: "original" }
